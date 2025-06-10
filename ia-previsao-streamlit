@@ -1,1 +1,80 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+import matplotlib.pyplot as plt
+
+st.set_page_config(page_title="IA Previsão de Jogos", layout="centered")
+
+st.title("⚽ IA para Previsão de Resultado de Jogos")
+
+# Inicializar histórico
+if "historico" not in st.session_state:
+    st.session_state.historico = []
+
+# Dados fictícios para treino
+dados_ficticios = pd.DataFrame({
+    'gols_time': [1, 2, 3, 0, 1, 2],
+    'gols_adversario': [0, 2, 1, 1, 3, 2],
+    'chutes': [10, 15, 12, 8, 9, 14],
+    'escanteios': [5, 6, 4, 3, 7, 5]
+})
+
+def preparar_dados(df):
+    df = df.dropna()
+    df['resultado'] = df.apply(
+        lambda linha: 1 if linha['gols_time'] > linha['gols_adversario']
+        else (0 if linha['gols_time'] == linha['gols_adversario'] else -1), axis=1)
+    X = df.drop(columns=['resultado'])
+    y = df['resultado']
+    return X, y
+
+X, y = preparar_dados(dados_ficticios)
+modelo = RandomForestClassifier(n_estimators=100, random_state=42)
+modelo.fit(X, y)
+
+st.subheader("📋 Informe os dados da partida:")
+
+col1, col2 = st.columns(2)
+with col1:
+    gols_time = st.number_input("Gols do Time", min_value=0, step=1)
+    chutes = st.number_input("Chutes a Gol", min_value=0, step=1)
+with col2:
+    gols_adversario = st.number_input("Gols do Adversário", min_value=0, step=1)
+    escanteios = st.number_input("Escanteios", min_value=0, step=1)
+
+if st.button("🔍 Prever Resultado"):
+    entrada = pd.DataFrame([{
+        'gols_time': gols_time,
+        'gols_adversario': gols_adversario,
+        'chutes': chutes,
+        'escanteios': escanteios
+    }])
+
+    resultado = modelo.predict(entrada)[0]
+    mapa = {1: "Vitória", 0: "Empate", -1: "Derrota"}
+    previsao = mapa[resultado]
+
+    st.success(f"📊 Previsão: **{previsao}**")
+
+    # Salvar no histórico
+    st.session_state.historico.append(previsao)
+
+# Mostrar gráfico se houver histórico
+if st.session_state.historico:
+    st.subheader("📈 Histórico de Previsões")
+
+    df_hist = pd.DataFrame(st.session_state.historico, columns=["Resultado"])
+    contagem = df_hist["Resultado"].value_counts()
+
+    fig, ax = plt.subplots()
+    contagem.plot(kind="bar", ax=ax, color=["green", "gray", "red"])
+    plt.xlabel("Resultado")
+    plt.ylabel("Frequência")
+    plt.title("Resultados Previstos")
+    st.pyplot(fig)
+
+    # Exportar CSV
+    csv = df_hist.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 Baixar Histórico (CSV)", csv, "historico.csv", "text/csv")
 
